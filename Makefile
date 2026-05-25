@@ -1,4 +1,4 @@
-.PHONY: proto dev api test
+.PHONY: proto dev api test envoy
 
 proto:
 	python -m grpc_tools.protoc \
@@ -19,6 +19,15 @@ api:
 		--host 0.0.0.0 \
 		--port 8000 \
 		--reload
+
+envoy:
+	docker run --rm \
+		--name aegiscache-envoy \
+		-p 8080:8080 \
+		-v "$(PWD)/envoy.yaml:/etc/envoy/envoy.yaml" \
+		--add-host=host.docker.internal:host-gateway \
+		envoyproxy/envoy:v1.29-latest \
+		-c /etc/envoy/envoy.yaml
 
 test:
 	pytest tests/ -v --asyncio-mode=auto
