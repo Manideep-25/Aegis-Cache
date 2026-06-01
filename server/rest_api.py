@@ -5,11 +5,13 @@ import logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 from contextlib import asynccontextmanager
+from fastapi.responses import StreamingResponse
+import asyncio, json
 
 from cache.manager import CacheManager, Policy, Tier
 
@@ -46,8 +48,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware to allow requests from frontend apps running on localhost:3000 or 8080, 3000 denotes React development server, and 8080 is a envoy proxy that can be used to test with gRPC-Web clients.
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:8080"],
@@ -55,13 +55,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# We here are using Pydantic models for request validation and response serialization. These models also serve as documentation for the API schema, which is automatically generated in the Swagger UI.
-# We use BaseModel from Pydantic to define the expected structure of request bodies and response objects for each endpoint. The Field function allows us to add metadata and validation rules to each field.
 
 class SetRequest(BaseModel):
-    value:         str            = Field(...,   description="Value to cache (string)")
-    ttl_seconds:   int            = Field(0,     description="Time-to-live in seconds. 0 = no expiry")
-    write_through: bool           = Field(False, description="If true, also writes to L2 Redis")
+    value:         str  = Field(...,   description="Value to cache (string)")
+    ttl_seconds:   int  = Field(0,     description="Time-to-live in seconds. 0 = no expiry")
+    write_through: bool = Field(False, description="If true, also writes to L2 Redis")
 
 class SetResponse(BaseModel):
     success: bool
@@ -72,7 +70,7 @@ class GetResponse(BaseModel):
     key:        str
     found:      bool
     value:      Optional[str]
-    tier:       str               
+    tier:       str
     latency_ms: float
 
 class DeleteResponse(BaseModel):
@@ -84,10 +82,10 @@ class PolicyRequest(BaseModel):
     capacity: int = Field(0,   description="New L1 capacity. 0 = keep current")
 
 class PolicyResponse(BaseModel):
-    success:         bool
-    active_policy:   str
-    migrated_keys:   int
-    message:         str
+    success:       bool
+    active_policy: str
+    migrated_keys: int
+    message:       str
 
 class StatsResponse(BaseModel):
     active_policy:   str
@@ -102,10 +100,9 @@ class StatsResponse(BaseModel):
     avg_latency_ms:  float
 
 class HealthResponse(BaseModel):
-    status:  str
-    policy:  str
-    size:    int
-
+    status: str
+    policy: str
+    size:   int
 
 
 def _tier_label(tier: Tier) -> str:
@@ -114,7 +111,6 @@ def _tier_label(tier: Tier) -> str:
         Tier.L2_REDIS:   "L2_REDIS",
         Tier.DB_BACKEND: "DB_BACKEND",
     }.get(tier, "UNKNOWN")
-
 
 
 @app.get(
@@ -139,7 +135,7 @@ async def health():
     tags=["Cache"],
 )
 async def get_value(key: str):
-    start = time.monotonic()
+    start      = time.monotonic()
     value, tier = await manager.get(key)
     latency_ms  = round((time.monotonic() - start) * 1000, 3)
 
@@ -241,6 +237,54 @@ async def get_stats():
         avg_latency_ms  = s["avg_latency_ms"],
     )
 
+
+@app.get(
+    "/events",
+    summary="Live cache events stream (SSE)",
+    tags=["Observability"],
+)
+async def event_stream(request: Request):
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def on_event(event):
+        await queue.put(event)
+
+    manager.subscribe(on_event)
+
+    async def stream():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    try:
+                        payload = {
+                            "kind":         event.kind.name,
+                            "key":          event.key,
+                            "tier":         event.tier.name if event.tier else None,
+                            "latency_ms":   event.latency_ms,
+                            "policy":       event.policy.name if event.policy else None,
+                            "detail":       event.detail,
+                            "timestamp_ms": event.timestamp_ms,
+                            "stats":        event.stats if event.stats else None,
+                        }
+                        yield f"data: {json.dumps(payload)}\n\n"
+                    except Exception as e:
+                        logger.error("SSE serialize error: %s", e)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            manager.unsubscribe(on_event)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":

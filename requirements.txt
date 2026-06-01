@@ -2,7 +2,7 @@
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
 
-# Redis (async support built in)
+# Redis 
 redis>=5.0.1
 
 # FastAPI

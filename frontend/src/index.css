@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@0,400;0,500&display=swap');
+
+:root {
+  --yellow: #F5C400;
+  --yellow-light: #FFF7CC;
+
+  --white: #FFFFFF;
+  --white-soft: #F8FAFC;
+
+  --border: #E5E7EB;
+
+  --text: #111827;
+  --text-muted: #6B7280;
+
+  --black: #111111;
+
+  --hit-color: #16A34A;
+  --miss-color: #DC2626;
+  --policy-color: #2563EB;
+  --evict-color: #CA8A04;
+
+  --font-display: "Syne", sans-serif;
+  --font-mono: "DM Mono", monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+
+  --transition: 0.2s ease;
+
+  --shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 12px rgba(0,0,0,0.06);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--white-soft);
+  color: var(--text);
+
+  font-family: var(--font-display);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(245,196,0,0.28);
+  color: var(--black);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(17,17,17,0.12);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(17,17,17,0.22);
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  border: none;
+  outline: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease both;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.35s ease both;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.2s ease both;
+}
